@@ -24,6 +24,9 @@
         <Authors>Cross</Authors>
         <Description>A robust ImageViewer control for .NET MAUI with Zoom, Pan, Bounce Effect, and Memory safety.</Description>
         <PackageTags>maui;image;zoom;pan;control</PackageTags>
+        <RepositoryUrl>https://github.com/marqzosvaldo/ImageViewerMaui</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/marqzosvaldo/ImageViewerMaui</PackageProjectUrl>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
 	</PropertyGroup>
 
 	<ItemGroup>
