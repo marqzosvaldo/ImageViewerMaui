@@ -20,7 +20,7 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Title>ImageViewer MAUI Control</Title>
         <PackageId>ImageViewerMaui</PackageId>
-        <Version>1.0.0</Version>
+        <Version>1.1.0</Version>
         <Authors>Cross</Authors>
         <Description>A robust ImageViewer control for .NET MAUI with Zoom, Pan, Bounce Effect, and Memory safety.</Description>
         <PackageTags>maui;image;zoom;pan;control</PackageTags>
