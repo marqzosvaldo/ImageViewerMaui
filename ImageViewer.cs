@@ -27,6 +27,46 @@ namespace ImageViewerMaui
             set => SetValue(SourceProperty, value);
         }
 
+        public static readonly BindableProperty AspectProperty =
+            BindableProperty.Create(nameof(Aspect), typeof(Aspect), typeof(ImageViewer), Aspect.AspectFit,
+                propertyChanged: (bindable, oldVal, newVal) => ((ImageViewer)bindable)._contentImage.Aspect = (Aspect)newVal);
+
+        public Aspect Aspect
+        {
+            get => (Aspect)GetValue(AspectProperty);
+            set => SetValue(AspectProperty, value);
+        }
+
+        public static readonly BindableProperty ImageWidthProperty =
+            BindableProperty.Create(nameof(ImageWidth), typeof(double), typeof(ImageViewer), -1.0,
+                propertyChanged: (bindable, oldVal, newVal) => {
+                   if (bindable is ImageViewer viewer && viewer._contentImage != null)
+                   {
+                       viewer._contentImage.WidthRequest = (double)newVal;
+                   }
+                });
+
+        public double ImageWidth
+        {
+            get => (double)GetValue(ImageWidthProperty);
+            set => SetValue(ImageWidthProperty, value);
+        }
+
+        public static readonly BindableProperty ImageHeightProperty =
+            BindableProperty.Create(nameof(ImageHeight), typeof(double), typeof(ImageViewer), -1.0,
+                propertyChanged: (bindable, oldVal, newVal) => {
+                   if (bindable is ImageViewer viewer && viewer._contentImage != null)
+                   {
+                       viewer._contentImage.HeightRequest = (double)newVal;
+                   }
+                });
+
+        public double ImageHeight
+        {
+            get => (double)GetValue(ImageHeightProperty);
+            set => SetValue(ImageHeightProperty, value);
+        }
+
         public static readonly BindableProperty IsBounceEnabledProperty =
             BindableProperty.Create(nameof(IsBounceEnabled), typeof(bool), typeof(ImageViewer), true);
 
@@ -116,7 +156,7 @@ namespace ImageViewerMaui
             }
         }
 
-        private async void OnDoubleTapped(object sender, EventArgs e)
+        private async void OnDoubleTapped(object sender, TappedEventArgs e)
         {
             if (Content.Scale > 1)
             {
@@ -125,14 +165,51 @@ namespace ImageViewerMaui
             else
             {
                 _currentScale = 2.5;
+
+                Point? tapPosition = e.GetPosition(this);
+                double targetTransX = 0;
+                double targetTransY = 0;
+
+                if (tapPosition.HasValue)
+                {
+                    double w = Content.Width;
+                    double h = Content.Height;
+
+                    double centerX = w / 2.0;
+                    double centerY = h / 2.0;
+
+                    double offsetX = tapPosition.Value.X - centerX;
+                    double offsetY = tapPosition.Value.Y - centerY;
+
+                    targetTransX = -offsetX * _currentScale;
+                    targetTransY = -offsetY * _currentScale;
+
+                    double scaledWidth = w * _currentScale;
+                    double scaledHeight = h * _currentScale;
+                    double maxTransX = (scaledWidth - w) / 2;
+                    double maxTransY = (scaledHeight - h) / 2;
+
+                    targetTransX = Math.Clamp(targetTransX, -maxTransX, maxTransX);
+                    targetTransY = Math.Clamp(targetTransY, -maxTransY, maxTransY);
+                }
+
                 if (IsBounceEnabled)
                 {
-                    await Content.ScaleTo(_currentScale, 600, GetSpringEasing());
+                    await Task.WhenAll(
+                        Content.ScaleTo(_currentScale, 600, GetSpringEasing()),
+                        Content.TranslateTo(targetTransX, targetTransY, 600, GetSpringEasing())
+                    );
                 }
                 else
                 {
-                    await Content.ScaleTo(_currentScale, 250, Easing.CubicOut);
+                    await Task.WhenAll(
+                        Content.ScaleTo(_currentScale, 250, Easing.CubicOut),
+                        Content.TranslateTo(targetTransX, targetTransY, 250, Easing.CubicOut)
+                    );
                 }
+
+                _xOffset = targetTransX;
+                _yOffset = targetTransY;
             }
         }
 
