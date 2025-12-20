@@ -125,6 +125,60 @@ namespace ImageViewerMaui
             }
         }
 
+        private Size GetRenderedSize()
+        {
+            double contentWidth = Content.Width;
+            double contentHeight = Content.Height;
+
+            if (contentWidth <= 0 || contentHeight <= 0)
+                return Size.Zero;
+
+            double viewAspect = contentWidth / contentHeight;
+            double imageAspect;
+
+            // 1. Try explicit properties
+            if (ImageWidth > 0 && ImageHeight > 0)
+            {
+                imageAspect = ImageWidth / ImageHeight;
+            }
+            else
+            {
+                // 2. Try Auto-detect intrinsic size
+                SizeRequest measure = _contentImage.Measure(double.PositiveInfinity, double.PositiveInfinity);
+                if (measure.Request.Width > 0 && measure.Request.Height > 0)
+                {
+                     imageAspect = measure.Request.Width / measure.Request.Height;
+                     // Optional: Store these so we don't measure every time? 
+                     // For now, calculating on the fly is safer for changing sources.
+                     Debug.WriteLine($"[ImageViewer] Auto-detected size: {measure.Request.Width}x{measure.Request.Height}");
+                }
+                else
+                {
+                    // 3. Fallback to view aspect (assume fits perfectly)
+                    imageAspect = viewAspect;
+                }
+            }
+
+            double renderedWidth, renderedHeight;
+
+            // AspectFit logic
+            if (imageAspect > viewAspect)
+            {
+                // Image is wider than view (relative to aspect), so it fits by width
+                renderedWidth = contentWidth;
+                renderedHeight = contentWidth / imageAspect;
+            }
+            else
+            {
+                // Image is taller than view, so it fits by height
+                renderedHeight = contentHeight;
+                renderedWidth = contentHeight * imageAspect;
+            }
+
+            Debug.WriteLine($"[GetRenderedSize] View: {contentWidth}x{contentHeight} | Aspect: {imageAspect} | Rendered: {renderedWidth}x{renderedHeight}");
+            return new Size(renderedWidth, renderedHeight);
+        }
+
         private void OnPanUpdated(object sender, PanUpdatedEventArgs e)
         {
             if (Content.Scale <= 1) return;
@@ -135,18 +189,20 @@ namespace ImageViewerMaui
                     double targetX = _xOffset + e.TotalX;
                     double targetY = _yOffset + e.TotalY;
 
-                    double scaledWidth = Content.Width * Content.Scale;
-                    double scaledHeight = Content.Height * Content.Scale;
-                    double maxTransX = (scaledWidth - Content.Width) / 2;
-                    double maxTransY = (scaledHeight - Content.Height) / 2;
+                    Size visualSize = GetRenderedSize();
+                    
+                    // The scaled visual size
+                    double currentVisualWidth = visualSize.Width * Content.Scale;
+                    double currentVisualHeight = visualSize.Height * Content.Scale;
+
+                    double maxTransX = (currentVisualWidth - Content.Width) / 2;
+                    double maxTransY = (currentVisualHeight - Content.Height) / 2;
 
                     maxTransX = Math.Max(0, maxTransX);
                     maxTransY = Math.Max(0, maxTransY);
 
                     Content.TranslationX = Math.Clamp(targetX, -maxTransX, maxTransX);
                     Content.TranslationY = Math.Clamp(targetY, -maxTransY, maxTransY);
-
-                    System.Diagnostics.Debug.WriteLine($"[Pan] Target: ({targetX:F2}, {targetY:F2}) | Clamped: ({Content.TranslationX:F2}, {Content.TranslationY:F2}) | Max: +/-{maxTransX:F2}");
                     break;
 
                 case GestureStatus.Completed:
@@ -166,6 +222,21 @@ namespace ImageViewerMaui
             {
                 _currentScale = 2.5;
 
+                // Calculate "Fill Scale" to remove black bars
+                Size visualSize = GetRenderedSize();
+                if (visualSize.Width > 0 && visualSize.Height > 0 && Content.Width > 0 && Content.Height > 0)
+                {
+                    double scaleX = Content.Width / visualSize.Width;
+                    double scaleY = Content.Height / visualSize.Height;
+                    
+                    // We want to fill the screen, so we need the larger scale to cover the largest gap
+                    // However, usually we just want to ensure it fits the viewport dimension trying to be filled.
+                    // If it's Widescreen (fit by width), we need to scale up to fit height.
+                    
+                    double fillScale = Math.Max(scaleX, scaleY);
+                    _currentScale = Math.Max(2.5, fillScale);
+                }
+
                 Point? tapPosition = e.GetPosition(this);
                 double targetTransX = 0;
                 double targetTransY = 0;
@@ -175,6 +246,7 @@ namespace ImageViewerMaui
                     double w = Content.Width;
                     double h = Content.Height;
 
+                    // Since AspectFit centers the image, the visual center IS the view center.
                     double centerX = w / 2.0;
                     double centerY = h / 2.0;
 
@@ -184,10 +256,15 @@ namespace ImageViewerMaui
                     targetTransX = -offsetX * _currentScale;
                     targetTransY = -offsetY * _currentScale;
 
-                    double scaledWidth = w * _currentScale;
-                    double scaledHeight = h * _currentScale;
-                    double maxTransX = (scaledWidth - w) / 2;
-                    double maxTransY = (scaledHeight - h) / 2;
+                    // 2. Clamp based on Visual Size, not just Content Size
+                    double currentVisualWidth = visualSize.Width * _currentScale;
+                    double currentVisualHeight = visualSize.Height * _currentScale;
+
+                    double maxTransX = (currentVisualWidth - w) / 2;
+                    double maxTransY = (currentVisualHeight - h) / 2;
+
+                    maxTransX = Math.Max(0, maxTransX);
+                    maxTransY = Math.Max(0, maxTransY);
 
                     targetTransX = Math.Clamp(targetTransX, -maxTransX, maxTransX);
                     targetTransY = Math.Clamp(targetTransY, -maxTransY, maxTransY);
@@ -196,8 +273,8 @@ namespace ImageViewerMaui
                 if (IsBounceEnabled)
                 {
                     await Task.WhenAll(
-                        Content.ScaleTo(_currentScale, 600, GetSpringEasing()),
-                        Content.TranslateTo(targetTransX, targetTransY, 600, GetSpringEasing())
+                        Content.ScaleTo(_currentScale, 600, SpringEasing),
+                        Content.TranslateTo(targetTransX, targetTransY, 600, SpringEasing)
                     );
                 }
                 else
@@ -212,6 +289,7 @@ namespace ImageViewerMaui
                 _yOffset = targetTransY;
             }
         }
+
 
         private Task ResetImage()
         {
@@ -234,7 +312,7 @@ namespace ImageViewerMaui
             var startTransY = Content.TranslationY;
 
             var animation = new Animation();
-            var easing = GetSpringEasing();
+            var easing = SpringEasing;
 
             animation.Add(0, 1, new Animation(v =>
             {
@@ -259,12 +337,9 @@ namespace ImageViewerMaui
             return tcs.Task;
         }
 
-        private Easing GetSpringEasing()
-        {
-            return new Easing(t =>
-                Math.Sin(-13 * Math.PI / 2 * (t + 1)) * Math.Pow(2, -10 * t) + 1
-            );
-        }
+        private static readonly Easing SpringEasing = new Easing(t =>
+            Math.Sin(-13 * Math.PI / 2 * (t + 1)) * Math.Pow(2, -10 * t) + 1
+        );
 
         #endregion
 
@@ -336,6 +411,9 @@ namespace ImageViewerMaui
             {
                 Debug.WriteLine($"Dispatcher failure when clearing Content: {ex.Message}");
             }
+
+            BindingContext = null;
+            GC.SuppressFinalize(this);
         }
 
 #if DEBUG
