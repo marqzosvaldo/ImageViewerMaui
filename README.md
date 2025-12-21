@@ -6,7 +6,7 @@ Image viewer control for .NET MAUI applications. This control provides a zooming
 
 | Bounce Enabled | Bounce Disabled |
 | :---: | :---: |
-| ![Bounce Enabled](ImageViewerMaui%20IsBounceEnabled%20True.gif) | ![Bounce Disabled](ImageViewerMaui%20IsBounceEnabled%20False.gif) |
+| <img src="ImageViewerMaui%20IsBounceEnabled%20True.gif" height="600" /> | <img src="ImageViewerMaui%20IsBounceEnabled%20False.gif" height="600" /> |
 
 ## Features
 
